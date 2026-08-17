@@ -1,5 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  CockroachIcon,
+  CopyIcon,
+  CrownIcon,
+  CheckIcon
+} from './icons';
+import { savePlayer, getPlayer } from '../storage';
 
 function Lobby({ socket }) {
   const [playerName, setPlayerName] = useState('');
@@ -8,81 +15,101 @@ function Lobby({ socket }) {
   const [joined, setJoined] = useState(false);
   const [currentLobbyId, setCurrentLobbyId] = useState('');
   const [players, setPlayers] = useState([]);
-  const [isHost, setIsHost] = useState(false);
+  const [hostId, setHostId] = useState(null);
   const [expectedPlayerCount, setExpectedPlayerCount] = useState(2);
-  const [gameState, setGameState] = useState(null);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [connected, setConnected] = useState(socket.connected);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const autoJoinedRef = useRef(false);
+
+  const showError = useCallback((message) => {
+    setError(message);
+    window.setTimeout(() => setError(''), 4000);
+  }, []);
+
+  const showNotice = useCallback((message) => {
+    setNotice(message);
+    window.setTimeout(() => setNotice(''), 4000);
+  }, []);
 
   useEffect(() => {
-    // Check URL parameters for auto-join
     const urlLobbyId = searchParams.get('room');
     const urlName = searchParams.get('name');
     const urlAge = searchParams.get('age');
-    
-    if (urlLobbyId) {
-      setLobbyId(urlLobbyId);
-    }
-    if (urlName) {
-      setPlayerName(urlName);
-    }
-    if (urlAge) {
-      setPlayerAge(urlAge);
-    }
 
-    // Auto-join if all parameters are present
-    if (urlLobbyId && urlName && urlAge) {
-      setTimeout(() => {
-        socket.emit('join_lobby', { 
-          lobbyId: urlLobbyId, 
-          playerName: urlName, 
-          age: urlAge 
-        });
+    if (urlLobbyId) setLobbyId(urlLobbyId.toUpperCase());
+    if (urlName) setPlayerName(urlName);
+    if (urlAge) setPlayerAge(urlAge);
+
+    if (urlLobbyId && urlName && urlAge && !autoJoinedRef.current) {
+      autoJoinedRef.current = true;
+      savePlayer({ lobbyId: urlLobbyId.toUpperCase(), name: urlName, age: urlAge });
+      window.setTimeout(() => {
+        socket.emit('join_lobby', { lobbyId: urlLobbyId.toUpperCase(), playerName: urlName, age: urlAge });
       }, 100);
     }
 
-    socket.on('lobby_joined', ({ lobbyId }) => {
-      setCurrentLobbyId(lobbyId);
-      setJoined(true);
-      // Update URL without navigating
-      window.history.pushState({}, '', `/game/${lobbyId}`);
-    });
-
-    socket.on('game_state_update', (game) => {
-      setPlayers(game.players);
-      setGameState(game);
-      setIsHost(game.players.length > 0 && game.players[0].id === socket.id);
-      if (game.expectedPlayerCount) {
-        setExpectedPlayerCount(game.expectedPlayerCount);
+    const onConnect = () => {
+      setConnected(true);
+      const stored = getPlayer();
+      if (stored && stored.lobbyId) {
+        socket.emit('join_lobby', {
+          lobbyId: stored.lobbyId,
+          playerName: stored.name,
+          age: stored.age
+        });
       }
-      
-      if (game.gameState === 'PLAYING') {
+    };
+    const onDisconnect = () => setConnected(false);
+
+    const onLobbyJoined = ({ lobbyId: id }) => {
+      setCurrentLobbyId(id);
+      setJoined(true);
+      window.history.pushState({}, '', `/game/${id}`);
+    };
+
+    const onGameState = (game) => {
+      setPlayers(game.players);
+      setHostId(game.hostId);
+      if (game.expectedPlayerCount) setExpectedPlayerCount(game.expectedPlayerCount);
+      if (game.gameState === 'PLAYING' || game.gameState === 'ENDED') {
         navigate(`/game/${game.lobbyId}`);
       }
-    });
+    };
 
-    socket.on('error', ({ message }) => {
-      alert(message);
-    });
+    const onError = ({ message }) => showError(message);
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('lobby_joined', onLobbyJoined);
+    socket.on('game_state_update', onGameState);
+    socket.on('error', onError);
 
     return () => {
-      socket.off('lobby_joined');
-      socket.off('game_state_update');
-      socket.off('error');
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('lobby_joined', onLobbyJoined);
+      socket.off('game_state_update', onGameState);
+      socket.off('error', onError);
     };
-  }, [socket, navigate]);
+  }, [socket, navigate, searchParams, showError]);
 
   const handleJoin = (e) => {
     e.preventDefault();
-    if (!playerName.trim()) {
-      alert('Please enter your name');
+    const name = playerName.trim();
+    if (!name) {
+      showError('Zadej prosím své jméno.');
       return;
     }
-    if (!playerAge.trim() || parseInt(playerAge) < 1) {
-      alert('Please enter a valid age');
+    if (!playerAge.trim() || parseInt(playerAge, 10) < 1 || parseInt(playerAge, 10) > 120) {
+      showError('Zadej platný věk (1–120).');
       return;
     }
-    socket.emit('join_lobby', { lobbyId: lobbyId.trim() || null, playerName, age: playerAge });
+    const target = lobbyId.trim().toUpperCase() || null;
+    savePlayer({ lobbyId: target || undefined, name, age: playerAge });
+    socket.emit('join_lobby', { lobbyId: target, playerName: name, age: playerAge });
   };
 
   const handleStartGame = () => {
@@ -98,62 +125,91 @@ function Lobby({ socket }) {
     socket.emit('toggle_ready', { lobbyId: currentLobbyId });
   };
 
-  const getCurrentPlayer = () => {
-    return players.find(p => p.id === socket.id);
-  };
+  const getCurrentPlayer = () => players.find((p) => p.id === socket.id);
 
   const handleCreateNew = () => {
+    if (currentLobbyId) {
+      socket.emit('leave_lobby', { lobbyId: currentLobbyId });
+    }
     setLobbyId('');
     setJoined(false);
     setCurrentLobbyId('');
     setPlayers([]);
+    setHostId(null);
+    setError('');
+    setNotice('');
+    navigate('/');
   };
 
   const handleCopyInviteLink = () => {
     const currentPlayer = getCurrentPlayer();
-    if (currentPlayer) {
-      const inviteUrl = `${window.location.origin}/?room=${currentLobbyId}&name=${encodeURIComponent(playerName)}&age=${playerAge}`;
-      navigator.clipboard.writeText(inviteUrl).then(() => {
-        alert('Invite link copied to clipboard!');
-      }).catch(() => {
-        alert('Failed to copy link. Please copy the URL manually.');
-      });
-    }
+    if (!currentPlayer) return;
+    const inviteUrl = `${window.location.origin}/?room=${currentLobbyId}&name=${encodeURIComponent(playerName)}&age=${playerAge}`;
+    navigator.clipboard.writeText(inviteUrl).then(() => {
+      showNotice('Pozvánka byla zkopírována.');
+    }).catch(() => {
+      showNotice('Zkopíruj adresu z řádku prohlížeče.');
+    });
   };
+
+  const isHost = hostId === socket.id;
 
   if (joined) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 max-w-md w-full shadow-2xl">
-          <h1 className="text-3xl font-bold text-white mb-6 text-center">
-            🪳 Švábí salát
-          </h1>
-          
-          <div className="bg-white/5 rounded-xl p-4 mb-6">
-            <p className="text-gray-300 text-sm mb-2">Lobby ID:</p>
-            <p className="text-2xl font-mono font-bold text-green-400 text-center">
-              {currentLobbyId}
-            </p>
-            <button
-              onClick={handleCopyInviteLink}
-              className="w-full mt-3 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-all"
-            >
-              📋 Copy Invite Link
-            </button>
+      <div className="min-h-screen bg-white p-4">
+        <div className="mx-auto max-w-md">
+          <header className="mb-6 text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-900 text-white">
+              <CockroachIcon className="h-8 w-8" />
+            </div>
+            <h1 className="text-xl font-extrabold tracking-tight text-ink">ŠVÁBÍ SALÁT</h1>
+            <p className="mt-1 text-xs text-gray-500">Čekárna</p>
+          </header>
+
+          {!connected && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold text-amber-700 animate-pulse-soft">
+              Ztratili jsme spojení, snažíme se připojit…
+            </div>
+          )}
+          {error && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-danger">
+              {error}
+            </div>
+          )}
+          {notice && (
+            <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-primary-dark">
+              {notice}
+            </div>
+          )}
+
+          <div className="card-flat p-4 mb-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="label mb-1">Kód lobby</p>
+                <p className="font-mono text-2xl font-bold tracking-widest text-ink">{currentLobbyId}</p>
+              </div>
+              <button
+                onClick={handleCopyInviteLink}
+                className="btn-secondary flex !w-auto items-center gap-2 whitespace-nowrap !px-3 !py-2 text-sm"
+              >
+                <CopyIcon className="h-4 w-4" />
+                Pozvánka
+              </button>
+            </div>
           </div>
 
           {isHost && (
-            <div className="mb-6">
-              <h2 className="text-white font-semibold mb-3">Set Number of Players:</h2>
-              <div className="flex gap-2">
-                {[2, 3, 4, 5, 6].map(count => (
+            <div className="card-flat p-4 mb-4">
+              <p className="label mb-3">Počet hráčů</p>
+              <div className="grid grid-cols-5 gap-2">
+                {[2, 3, 4, 5, 6].map((count) => (
                   <button
                     key={count}
                     onClick={() => handleSetPlayerCount(count)}
-                    className={`flex-1 py-2 px-4 rounded-lg font-bold transition-all ${
+                    className={`rounded-lg py-2 text-sm font-bold transition-colors ${
                       expectedPlayerCount === count
-                        ? 'bg-green-500 text-white'
-                        : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
                     {count}
@@ -163,85 +219,67 @@ function Lobby({ socket }) {
             </div>
           )}
 
-          <div className="mb-6">
-            <h2 className="text-white font-semibold mb-3">
-              Players ({players.length}/{expectedPlayerCount}):
-            </h2>
-            <div className="space-y-2">
-              {players.map((player, index) => (
-                <div
+          <div className="card-flat p-4 mb-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="label">Hráči</p>
+              <span className="text-xs font-semibold text-gray-500">
+                {players.length}/{expectedPlayerCount || '—'}
+              </span>
+            </div>
+            <ul className="space-y-2">
+              {players.map((player) => (
+                <li
                   key={player.id}
-                  className={`flex items-center justify-between rounded-lg p-3 ${
-                    player.ready ? 'bg-green-500/20 border border-green-500/50' : 'bg-white/5'
+                  className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${
+                    player.ready ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-white">
-                      {index === 0 && '👑 '}
-                      {player.name}
-                    </span>
-                    <span className="text-gray-400 text-sm">({player.age}y)</span>
-                    {player.ready && (
-                      <span className="text-green-400 text-sm">✓ Ready</span>
-                    )}
+                  <div className="flex min-w-0 items-center gap-2">
+                    {player.id === hostId && <CrownIcon className="h-4 w-4 shrink-0 text-amber-500" />}
+                    <span className="truncate text-sm font-semibold text-ink">{player.name}</span>
+                    <span className="shrink-0 text-xs text-gray-400">{player.age} let</span>
+                    {player.id === socket.id && <span className="shrink-0 text-xs font-semibold text-primary">(ty)</span>}
                   </div>
-                  {player.id === socket.id && (
-                    <span className="text-green-400 text-sm">(You)</span>
+                  {player.ready ? (
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-green-600">
+                      <CheckIcon className="h-3.5 w-3.5" />
+                      Připraven
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-xs text-gray-400">čeká…</span>
                   )}
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
 
           <button
             onClick={handleToggleReady}
             disabled={!getCurrentPlayer()}
-            className={`w-full py-3 px-6 rounded-xl font-bold transition-all ${
-              getCurrentPlayer()?.ready
-                ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                : 'bg-green-500 hover:bg-green-600 text-white'
-            }`}
+            className={`btn-primary mb-4 ${getCurrentPlayer()?.ready ? '!bg-gray-200 !text-gray-500 hover:!bg-gray-200' : ''}`}
           >
-            {getCurrentPlayer()?.ready ? 'NOT READY' : 'READY'}
+            {getCurrentPlayer()?.ready ? 'Nejsem připraven' : 'Připravit se'}
           </button>
 
-          {isHost && (
-            <>
-              {players.length === expectedPlayerCount && players.every(p => p.ready) ? (
-                <button
-                  onClick={handleStartGame}
-                  className="w-full mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl transition-all transform hover:scale-105"
-                >
-                  Start Game
-                </button>
-              ) : (
-                <div className="mt-4">
-                  {players.length !== expectedPlayerCount && (
-                    <p className="text-yellow-400 text-center text-sm">
-                      Waiting for {expectedPlayerCount - players.length} more player(s)...
-                    </p>
-                  )}
-                  {players.length === expectedPlayerCount && !players.every(p => p.ready) && (
-                    <p className="text-yellow-400 text-center text-sm">
-                      Waiting for all players to be ready...
-                    </p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+          {isHost &&
+            (players.length === expectedPlayerCount && players.every((p) => p.ready) ? (
+              <button onClick={handleStartGame} className="btn-primary mb-4">
+                Spustit hru
+              </button>
+            ) : (
+              <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-center text-sm text-gray-500">
+                {players.length !== expectedPlayerCount
+                  ? `Čeká se na ${expectedPlayerCount - players.length} dalších hráčů…`
+                  : 'Čeká se, až budou všichni připraveni…'}
+              </div>
+            ))}
 
           {!isHost && (
-            <p className="text-gray-400 text-center text-sm mt-4">
-              Waiting for host to start the game...
-            </p>
+            <p className="mb-4 text-center text-sm text-gray-500">Čeká se, až hostitel spustí hru…</p>
           )}
 
-          <button
-            onClick={handleCreateNew}
-            className="w-full mt-4 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-all"
-          >
-            Create New Lobby
+          <button onClick={handleCreateNew} className="btn-secondary">
+            Vytvořit nové lobby
           </button>
         </div>
       </div>
@@ -249,59 +287,71 @@ function Lobby({ socket }) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 max-w-md w-full shadow-2xl">
-        <h1 className="text-3xl font-bold text-white mb-6 text-center">
-          🪳 Švábí salát
-        </h1>
-        
-        <form onSubmit={handleJoin} className="space-y-4">
+    <div className="flex min-h-screen items-center justify-center bg-white p-4">
+      <div className="w-full max-w-md">
+        <header className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-900 text-white">
+            <CockroachIcon className="h-9 w-9" />
+          </div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-ink">ŠVÁBÍ SALÁT</h1>
+          <p className="mt-1 text-sm text-gray-500">Karetní hra pro 2–6 hráčů</p>
+        </header>
+
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-danger">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleJoin} className="card-flat space-y-4 p-6">
           <div>
-            <label className="block text-gray-300 mb-2 text-sm">Your Name</label>
+            <label className="label mb-1.5" htmlFor="playerName">Tvoje jméno</label>
             <input
+              id="playerName"
               type="text"
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
-              className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="Enter your name"
+              className="input-flat"
+              placeholder="Zadej jméno"
               maxLength={20}
             />
           </div>
 
           <div>
-            <label className="block text-gray-300 mb-2 text-sm">Your Age</label>
+            <label className="label mb-1.5" htmlFor="playerAge">Tvůj věk</label>
             <input
+              id="playerAge"
               type="number"
               value={playerAge}
               onChange={(e) => setPlayerAge(e.target.value)}
-              className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="Enter your age"
+              className="input-flat"
+              placeholder="Zadej věk"
               min={1}
               max={120}
             />
           </div>
 
           <div>
-            <label className="block text-gray-300 mb-2 text-sm">
-              Lobby ID (optional - leave empty to create new)
-            </label>
+            <label className="label mb-1.5" htmlFor="lobbyId">Kód lobby (volitelné)</label>
             <input
+              id="lobbyId"
               type="text"
               value={lobbyId}
               onChange={(e) => setLobbyId(e.target.value.toUpperCase())}
-              className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
-              placeholder="Enter lobby ID"
+              className="input-flat font-mono"
+              placeholder="Prázdné = vytvoří nové"
               maxLength={5}
             />
           </div>
 
-          <button
-            type="submit"
-            className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl transition-all transform hover:scale-105"
-          >
-            {lobbyId ? 'Join Lobby' : 'Create Lobby'}
+          <button type="submit" className="btn-primary">
+            {lobbyId ? 'Připojit se' : 'Vytvořit lobby'}
           </button>
         </form>
+
+        <p className="mt-4 text-center text-xs text-gray-400">
+          Pro hru si s přáteli otevři hlasový hovor.
+        </p>
       </div>
     </div>
   );
