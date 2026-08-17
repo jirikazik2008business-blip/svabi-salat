@@ -1,12 +1,12 @@
-// Generate the full deck of cards
+// Generate the full deck of cards (128 cards total)
 function generateDeck() {
   const deck = [];
-  
-  // 120 vegetable cards (30 of each type)
+
+  // 112 vegetable cards (28 of each type)
   const vegetables = ['tomato', 'pepper', 'cauliflower', 'salad'];
-  
+
   vegetables.forEach(vegetable => {
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 28; i++) {
       deck.push({
         id: `${vegetable}-${i}`,
         type: 'vegetable',
@@ -14,10 +14,10 @@ function generateDeck() {
       });
     }
   });
-  
-  // 8 taboo cockroach cards (2 of each vegetable variant)
+
+  // 16 taboo cockroach cards (4 of each vegetable variant)
   vegetables.forEach(vegetable => {
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 4; i++) {
       deck.push({
         id: `taboo-${vegetable}-${i}`,
         type: 'taboo',
@@ -25,7 +25,7 @@ function generateDeck() {
       });
     }
   });
-  
+
   return deck;
 }
 

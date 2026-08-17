@@ -117,6 +117,7 @@ io.on('connection', (socket) => {
         lobbyId: targetLobbyId,
         gameState: 'LOBBY',
         activePlayerIndex: 0,
+        activePileIndex: 0,
         discardPile: [],
         tabooCard: null,
         secondaryDiscardPile: [],
@@ -325,13 +326,18 @@ io.on('connection', (socket) => {
 
     const card = currentPlayer.deck.shift();
 
+    // Cards are placed on the active pile.
+    // A taboo (cockroach) card caps the currently active pile and switches
+    // the active pile to the other one, so the cockroach is always visible
+    // on top of the pile that is not being stacked on.
+    const activePile = game.activePileIndex === 0 ? game.discardPile : game.secondaryDiscardPile;
+
     if (card.type === 'taboo') {
+      activePile.unshift(card);
       game.tabooCard = card;
-      game.secondaryDiscardPile = [];
-    } else if (game.tabooCard) {
-      game.secondaryDiscardPile.unshift(card);
+      game.activePileIndex = 1 - game.activePileIndex;
     } else {
-      game.discardPile.unshift(card);
+      activePile.unshift(card);
     }
 
     advanceActivePlayer(game);
@@ -374,6 +380,7 @@ io.on('connection', (socket) => {
     game.discardPile = [];
     game.secondaryDiscardPile = [];
     game.tabooCard = null;
+    game.activePileIndex = 0;
 
     game.activePlayerIndex = game.players.findIndex((p) => p.id === penalizedPlayerId);
     if (!game.players[game.activePlayerIndex].connected || game.players[game.activePlayerIndex].deck.length === 0) {
@@ -565,6 +572,7 @@ function dealCards(game) {
   game.discardPile = [];
   game.secondaryDiscardPile = [];
   game.tabooCard = null;
+  game.activePileIndex = 0;
 }
 
 const PORT = process.env.PORT || 3001;

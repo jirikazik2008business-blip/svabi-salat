@@ -176,6 +176,7 @@ function Game({ socket }) {
   const secondaryTop = gameState.secondaryDiscardPile[0];
   const pilesEmpty = gameState.discardPile.length === 0 && gameState.secondaryDiscardPile.length === 0;
   const opponents = gameState.players.filter((p) => p.id !== socket.id);
+  const activePileIndex = gameState.activePileIndex ?? 0;
 
   return (
     <div className="min-h-screen bg-white">
@@ -234,7 +235,7 @@ function Game({ socket }) {
           <div className="mb-4 flex items-center justify-center gap-3 rounded-xl bg-danger px-4 py-3 text-white">
             <CockroachIcon className="h-6 w-6 shrink-0" />
             <p className="text-sm font-bold uppercase tracking-wider">
-              Tabu: {VEGETABLES[gameState.tabooCard.vegetable].label}
+              Šváb: {VEGETABLES[gameState.tabooCard.vegetable].label}
             </p>
           </div>
         )}
@@ -268,7 +269,16 @@ function Game({ socket }) {
 
         <div className="mb-5 flex justify-center gap-3 md:gap-6">
           <div className="flex flex-col items-center">
-            <p className="label mb-2">Hromádka ({gameState.discardPile.length})</p>
+            <p
+              className={`label mb-2 ${activePileIndex === 0 ? 'text-gray-900' : 'text-gray-400'}`}
+            >
+              Hromádka 1 ({gameState.discardPile.length})
+              {activePileIndex === 0 && (
+                <span className="ml-1.5 rounded bg-primary px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-white">
+                  aktivní
+                </span>
+              )}
+            </p>
             {topCard ? (
               <CardFace key={topCard.id} card={topCard} animate />
             ) : (
@@ -276,16 +286,23 @@ function Game({ socket }) {
             )}
           </div>
 
-          {gameState.tabooCard && (
-            <div className="flex flex-col items-center">
-              <p className="label mb-2">Vedlejší ({gameState.secondaryDiscardPile.length})</p>
-              {secondaryTop ? (
-                <CardFace key={secondaryTop.id} card={secondaryTop} animate />
-              ) : (
-                <EmptyCard dashed />
+          <div className="flex flex-col items-center">
+            <p
+              className={`label mb-2 ${activePileIndex === 1 ? 'text-gray-900' : 'text-gray-400'}`}
+            >
+              Hromádka 2 ({gameState.secondaryDiscardPile.length})
+              {activePileIndex === 1 && (
+                <span className="ml-1.5 rounded bg-primary px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-white">
+                  aktivní
+                </span>
               )}
-            </div>
-          )}
+            </p>
+            {secondaryTop ? (
+              <CardFace key={secondaryTop.id} card={secondaryTop} animate />
+            ) : (
+              <EmptyCard dashed />
+            )}
+          </div>
         </div>
 
         <div className="card-flat mb-4 flex items-center justify-between p-4">
