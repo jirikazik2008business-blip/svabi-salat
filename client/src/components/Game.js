@@ -7,8 +7,7 @@ import {
   RefreshIcon,
   TrophyIcon,
   CardIcon,
-  LeaveIcon,
-  EyeIcon
+  LeaveIcon
 } from './icons';
 import { getPlayer } from '../storage';
 
@@ -47,6 +46,35 @@ function EmptyCard({ dashed }) {
   );
 }
 
+// Pile top card with press-and-hold peek of the card underneath it
+function PileCard({ topCard, underCard, held, onHoldStart, onRelease }) {
+  if (!topCard) return <EmptyCard />;
+  const canPeek = Boolean(underCard);
+  return (
+    <div
+      className={`relative h-40 w-28 select-none md:h-44 md:w-32 ${canPeek ? 'cursor-pointer' : ''}`}
+      onPointerDown={canPeek ? onHoldStart : undefined}
+      onPointerUp={canPeek ? onRelease : undefined}
+      onPointerCancel={onRelease}
+      onPointerLeave={onRelease}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {canPeek && (
+        <div className="absolute inset-0">
+          <CardFace key={underCard.id} card={underCard} />
+        </div>
+      )}
+      <div
+        className={`absolute inset-0 transition-transform duration-200 ease-out ${
+          held ? '-translate-y-7 opacity-70' : 'translate-y-0'
+        }`}
+      >
+        <CardFace key={topCard.id} card={topCard} />
+      </div>
+    </div>
+  );
+}
+
 function Game({ socket }) {
   const { lobbyId } = useParams();
   const navigate = useNavigate();
@@ -56,7 +84,7 @@ function Game({ socket }) {
   const [selectedPlayerForPenalty, setSelectedPlayerForPenalty] = useState('');
   const [error, setError] = useState('');
   const [connected, setConnected] = useState(socket.connected);
-  const [peekCard, setPeekCard] = useState(null);
+  const [heldPile, setHeldPile] = useState(null);
 
   useEffect(() => {
     const rejoin = () => {
@@ -99,19 +127,8 @@ function Game({ socket }) {
     };
   }, [socket, lobbyId]);
 
-  const handlePeek = () => {
-    if (peekCard) {
-      setPeekCard(null);
-      return;
-    }
-    if (!currentPlayer) return;
-    setPeekCard(currentPlayer.deck[1] || null);
-  };
-
-  const myDeckLength = currentPlayer?.deck.length ?? 0;
-  useEffect(() => {
-    setPeekCard(null);
-  }, [myDeckLength]);
+  const releaseHold = () => setHeldPile(null);
+  const holdPile = (index) => () => setHeldPile(index);
 
   const handleFlipCard = () => {
     if (gameState && gameState.players[gameState.activePlayerIndex]?.id === socket.id) {
@@ -164,6 +181,8 @@ function Game({ socket }) {
   const isHost = gameState.hostId === socket.id;
   const topCard = gameState.discardPile[0];
   const secondaryTop = gameState.secondaryDiscardPile[0];
+  const topUnder = gameState.discardPile[1];
+  const secondaryUnder = gameState.secondaryDiscardPile[1];
   const pilesEmpty = gameState.discardPile.length === 0 && gameState.secondaryDiscardPile.length === 0;
   const opponents = gameState.players.filter((p) => p.id !== socket.id);
   const activePileIndex = gameState.activePileIndex ?? 0;
@@ -260,11 +279,13 @@ function Game({ socket }) {
                 </span>
               )}
             </p>
-            {topCard ? (
-              <CardFace key={topCard.id} card={topCard} />
-            ) : (
-              <EmptyCard />
-            )}
+            <PileCard
+              topCard={topCard}
+              underCard={topUnder}
+              held={heldPile === 0}
+              onHoldStart={holdPile(0)}
+              onRelease={releaseHold}
+            />
           </div>
 
           <div className="flex flex-col items-center">
@@ -278,11 +299,13 @@ function Game({ socket }) {
                 </span>
               )}
             </p>
-            {secondaryTop ? (
-              <CardFace key={secondaryTop.id} card={secondaryTop} />
-            ) : (
-              <EmptyCard dashed />
-            )}
+            <PileCard
+              topCard={secondaryTop}
+              underCard={secondaryUnder}
+              held={heldPile === 1}
+              onHoldStart={holdPile(1)}
+              onRelease={releaseHold}
+            />
           </div>
         </div>
 
@@ -297,34 +320,6 @@ function Game({ socket }) {
               {currentPlayer?.deck.length || 0}
             </span>
           </div>
-        </div>
-
-        <div className="card-flat mb-4 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-ink">Náhled karty</p>
-              <p className="text-xs text-gray-500">karta v balíčku pod vrchní</p>
-            </div>
-            <button
-              onClick={handlePeek}
-              disabled={!currentPlayer || currentPlayer.deck.length < 2}
-              className="btn-secondary flex !w-auto shrink-0 items-center gap-2 !px-3 !py-2 text-sm"
-            >
-              <EyeIcon className="h-4 w-4" />
-              {peekCard ? 'Skrýt' : 'Nakouknout'}
-            </button>
-          </div>
-          {peekCard ? (
-            <div className="mt-4 flex justify-center">
-              <CardFace key={peekCard.id} card={peekCard} />
-            </div>
-          ) : (
-            <p className="mt-4 text-center text-xs text-gray-400">
-              {currentPlayer && currentPlayer.deck.length < 2
-                ? 'Nemáš žádnou kartu pod vrchní.'
-                : 'Odhalí se jen karta, která přijde po té, co položíš.'}
-            </p>
-          )}
         </div>
 
         <button
