@@ -2,6 +2,9 @@
 node_modules/
 package-lock.json
 
+# Source card images (deployed copies live in client/public/cards/)
+karty/
+
 # Environment variables
 .env
 .env.local

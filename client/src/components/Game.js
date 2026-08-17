@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  TomatoIcon,
-  PepperIcon,
-  CauliflowerIcon,
-  SaladIcon,
   CockroachIcon,
   CrownIcon,
   WarningIcon,
@@ -15,47 +11,25 @@ import {
 } from './icons';
 import { getPlayer } from '../storage';
 
-const VEGETABLES = {
-  tomato: { label: 'Rajče', bg: 'bg-tomato', text: 'text-white' },
-  pepper: { label: 'Paprika', bg: 'bg-pepper', text: 'text-white' },
-  cauliflower: { label: 'Květák', bg: 'bg-cauliflower', text: 'text-gray-700' },
-  salad: { label: 'Salát', bg: 'bg-salad', text: 'text-white' }
+const CARD_IMAGES = {
+  tomato: '/cards/rajce.webp',
+  pepper: '/cards/paprika.webp',
+  cauliflower: '/cards/kvetak.webp',
+  salad: '/cards/salat.webp',
+  'taboo-tomato': '/cards/svab-rajce.webp',
+  'taboo-pepper': '/cards/svab-paprika.webp',
+  'taboo-cauliflower': '/cards/svab-kvetak.webp',
+  'taboo-salad': '/cards/svab-salat.webp'
 };
 
-const VEGETABLE_ICONS = {
-  tomato: TomatoIcon,
-  pepper: PepperIcon,
-  cauliflower: CauliflowerIcon,
-  salad: SaladIcon
-};
-
-function CardFace({ card, animate }) {
-  if (card.type === 'taboo') {
-    return (
-      <div
-        className={`h-40 w-28 rounded-lg bg-roach text-white md:h-44 md:w-32 ${
-          animate ? 'animate-card-flip' : ''
-        } flex flex-col items-center justify-center border border-gray-600`}
-      >
-        <CockroachIcon className="mb-3 h-14 w-14" />
-        <span className="text-xs font-bold uppercase tracking-widest">Tabu</span>
-        <span className="mt-1 text-sm font-bold uppercase tracking-wide">
-          {VEGETABLES[card.vegetable].label}
-        </span>
-      </div>
-    );
-  }
-
-  const v = VEGETABLES[card.vegetable];
-  const Icon = VEGETABLE_ICONS[card.vegetable];
+function CardFace({ card }) {
+  const src =
+    card.type === 'taboo'
+      ? CARD_IMAGES[`taboo-${card.vegetable}`]
+      : CARD_IMAGES[card.vegetable];
   return (
-    <div
-      className={`h-40 w-28 rounded-lg md:h-44 md:w-32 ${v.bg} ${v.text} ${
-        animate ? 'animate-card-flip' : ''
-      } flex flex-col items-center justify-center border border-black/5`}
-    >
-      <Icon className="mb-3 h-14 w-14" />
-      <span className="text-sm font-bold uppercase tracking-widest">{v.label}</span>
+    <div className="h-40 w-28 overflow-hidden rounded-lg border border-black/10 shadow-sm md:h-44 md:w-32">
+      <img src={src} alt="" draggable={false} className="h-full w-full select-none object-cover" />
     </div>
   );
 }
@@ -231,15 +205,6 @@ function Game({ socket }) {
           </p>
         </div>
 
-        {gameState.tabooCard && (
-          <div className="mb-4 flex items-center justify-center gap-3 rounded-xl bg-danger px-4 py-3 text-white">
-            <CockroachIcon className="h-6 w-6 shrink-0" />
-            <p className="text-sm font-bold uppercase tracking-wider">
-              Šváb: {VEGETABLES[gameState.tabooCard.vegetable].label}
-            </p>
-          </div>
-        )}
-
         {opponents.length > 0 && (
           <div className="mb-5 grid grid-cols-2 gap-2 md:grid-cols-4">
             {opponents.map((player) => {
@@ -280,7 +245,7 @@ function Game({ socket }) {
               )}
             </p>
             {topCard ? (
-              <CardFace key={topCard.id} card={topCard} animate />
+              <CardFace key={topCard.id} card={topCard} />
             ) : (
               <EmptyCard />
             )}
@@ -298,7 +263,7 @@ function Game({ socket }) {
               )}
             </p>
             {secondaryTop ? (
-              <CardFace key={secondaryTop.id} card={secondaryTop} animate />
+              <CardFace key={secondaryTop.id} card={secondaryTop} />
             ) : (
               <EmptyCard dashed />
             )}
