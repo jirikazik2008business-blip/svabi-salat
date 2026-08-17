@@ -168,7 +168,8 @@ io.on('connection', (socket) => {
 
     // Lobby limits
     if (game.expectedPlayerCount && game.players.length >= game.expectedPlayerCount) {
-      socket.emit('error', { message: 'Lobby je plné.' });
+      socket.emit('lobby_full', { lobbyId: targetLobbyId });
+      socket.emit('error', { message: 'Lobby je plné. Zkus se připojit později.' });
       return;
     }
 

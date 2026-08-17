@@ -21,14 +21,28 @@ body {
     @apply w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder-gray-400 transition-colors focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900;
   }
   .btn-primary {
-    @apply w-full rounded-lg bg-primary py-3 px-6 text-base font-bold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400;
+    @apply w-full rounded-lg bg-primary py-3 px-6 text-base font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400;
   }
   .btn-secondary {
-    @apply w-full rounded-lg bg-gray-100 py-3 px-6 text-base font-semibold text-gray-800 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:text-gray-400;
+    @apply w-full rounded-lg bg-gray-100 py-3 px-6 text-base font-semibold text-gray-800 transition-colors hover:bg-gray-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:text-gray-400;
   }
   .card-flat {
     @apply rounded-xl border border-gray-200 bg-white;
   }
+}
+
+@keyframes card-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-card-pop {
+  animation: card-pop 0.25s ease-out;
 }
 
 @keyframes fade-in-up {
@@ -56,4 +70,26 @@ body {
 }
 .animate-pulse-soft {
   animation: pulse-soft 1.6s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+.animate-badge-pulse {
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

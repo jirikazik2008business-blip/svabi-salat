@@ -28,7 +28,7 @@ function CardFace({ card }) {
       ? CARD_IMAGES[`taboo-${card.vegetable}`]
       : CARD_IMAGES[card.vegetable];
   return (
-    <div className="h-40 w-28 overflow-hidden rounded-lg border border-black/10 shadow-sm md:h-44 md:w-32">
+    <div className="h-40 w-28 animate-card-pop overflow-hidden rounded-lg border border-black/10 shadow-sm md:h-44 md:w-32">
       <img src={src} alt="" draggable={false} className="h-full w-full select-none object-cover" />
     </div>
   );
@@ -154,7 +154,7 @@ function Game({ socket }) {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="mx-auto max-w-2xl p-4 pb-10">
+      <div className="mx-auto max-w-2xl animate-fade-in-up p-4 pb-10">
         <header className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 text-white">
@@ -196,7 +196,7 @@ function Game({ socket }) {
         <div
           className={`mb-4 rounded-xl px-4 py-3 text-center ${
             isMyTurn
-              ? 'border border-primary bg-primary text-white'
+              ? 'animate-pulse-soft border border-primary bg-primary text-white'
               : 'border border-gray-200 bg-gray-50 text-gray-600'
           }`}
         >
@@ -212,7 +212,7 @@ function Game({ socket }) {
               return (
                 <div
                   key={player.id}
-                  className={`rounded-xl border p-3 text-center ${
+                  className={`animate-fade-in-up rounded-xl border p-3 text-center ${
                     isActive ? 'border-primary bg-green-50' : 'border-gray-200 bg-white'
                   } ${!player.connected ? 'opacity-50' : ''}`}
                 >
@@ -239,7 +239,7 @@ function Game({ socket }) {
             >
               Hromádka 1 ({gameState.discardPile.length})
               {activePileIndex === 0 && (
-                <span className="ml-1.5 rounded bg-primary px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-white">
+                <span className="ml-1.5 animate-badge-pulse rounded bg-primary px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-white">
                   aktivní
                 </span>
               )}
@@ -257,7 +257,7 @@ function Game({ socket }) {
             >
               Hromádka 2 ({gameState.secondaryDiscardPile.length})
               {activePileIndex === 1 && (
-                <span className="ml-1.5 rounded bg-primary px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-white">
+                <span className="ml-1.5 animate-badge-pulse rounded bg-primary px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-white">
                   aktivní
                 </span>
               )}
@@ -286,7 +286,7 @@ function Game({ socket }) {
         <button
           onClick={handleFlipCard}
           disabled={!isMyTurn || !currentPlayer || currentPlayer.deck.length === 0}
-          className={`mb-5 w-full rounded-xl py-4 text-lg font-bold transition-colors ${
+          className={`mb-5 w-full rounded-xl py-4 text-lg font-bold transition-colors active:scale-[0.98] ${
             isMyTurn && currentPlayer && currentPlayer.deck.length > 0
               ? 'bg-primary text-white hover:bg-primary-dark'
               : 'cursor-not-allowed bg-gray-100 text-gray-400'
@@ -338,7 +338,7 @@ function Game({ socket }) {
         )}
 
         {gameState.gameState === 'ENDED' && gameState.standings && (
-          <div className="mt-6 rounded-xl border-2 border-gray-900 p-5">
+          <div className="mt-6 animate-fade-in-up rounded-xl border-2 border-gray-900 p-5">
             <div className="mb-4 flex items-center gap-2">
               <TrophyIcon className="h-6 w-6 text-amber-500" />
               <h2 className="text-lg font-extrabold tracking-tight text-ink">Konec hry</h2>

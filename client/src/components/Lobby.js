@@ -4,7 +4,8 @@ import {
   CockroachIcon,
   CopyIcon,
   CrownIcon,
-  CheckIcon
+  CheckIcon,
+  WarningIcon
 } from './icons';
 import { savePlayer, getPlayer } from '../storage';
 
@@ -19,6 +20,7 @@ function Lobby({ socket }) {
   const [expectedPlayerCount, setExpectedPlayerCount] = useState(2);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [lobbyFull, setLobbyFull] = useState(false);
   const [connected, setConnected] = useState(socket.connected);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -53,6 +55,7 @@ function Lobby({ socket }) {
     const onLobbyJoined = ({ lobbyId: id }) => {
       setCurrentLobbyId(id);
       setJoined(true);
+      setLobbyFull(false);
       window.history.pushState({}, '', `/game/${id}`);
     };
 
@@ -66,12 +69,14 @@ function Lobby({ socket }) {
     };
 
     const onError = ({ message }) => showError(message);
+    const onLobbyFull = () => setLobbyFull(true);
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('lobby_joined', onLobbyJoined);
     socket.on('game_state_update', onGameState);
     socket.on('error', onError);
+    socket.on('lobby_full', onLobbyFull);
 
     return () => {
       socket.off('connect', onConnect);
@@ -79,6 +84,7 @@ function Lobby({ socket }) {
       socket.off('lobby_joined', onLobbyJoined);
       socket.off('game_state_update', onGameState);
       socket.off('error', onError);
+      socket.off('lobby_full', onLobbyFull);
     };
   }, [socket, navigate, searchParams, showError]);
 
@@ -124,6 +130,7 @@ function Lobby({ socket }) {
     setHostId(null);
     setError('');
     setNotice('');
+    setLobbyFull(false);
     navigate('/');
   };
 
@@ -143,7 +150,7 @@ function Lobby({ socket }) {
   if (joined) {
     return (
       <div className="min-h-screen bg-white p-4">
-        <div className="mx-auto max-w-md">
+        <div className="mx-auto max-w-md animate-fade-in-up">
           <header className="mb-6 text-center">
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-900 text-white">
               <CockroachIcon className="h-8 w-8" />
@@ -216,7 +223,7 @@ function Lobby({ socket }) {
               {players.map((player) => (
                 <li
                   key={player.id}
-                  className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${
+                  className={`flex animate-fade-in-up items-center justify-between rounded-lg border px-3 py-2.5 ${
                     player.ready ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'
                   }`}
                 >
@@ -274,7 +281,7 @@ function Lobby({ socket }) {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-white p-4">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md animate-fade-in-up">
         <header className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-900 text-white">
             <CockroachIcon className="h-9 w-9" />
@@ -286,6 +293,13 @@ function Lobby({ socket }) {
         {error && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-danger">
             {error}
+          </div>
+        )}
+
+        {lobbyFull && (
+          <div className="mb-4 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+            <WarningIcon className="h-5 w-5 shrink-0" />
+            <span>Lobby je plné, zkus se připojit později.</span>
           </div>
         )}
 
