@@ -7,6 +7,17 @@ const { generateDeck, shuffleDeck } = require('./gameLogic');
 const app = express();
 app.use(cors());
 
+app.get('/health', (_req, res) => res.json({ ok: true }));
+app.get('/', (_req, res) => {
+  const frontend = process.env.FRONTEND_URL || 'frontend';
+  res.type('text/html').send(
+    '<!DOCTYPE html><html lang="cs"><head><meta charset="utf-8"><title>Švábí salát</title>' +
+      '<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#fff;color:#111}h1{font-size:22px}</style>' +
+      '</head><body><h1>Švábí salát — backend běží.<br>Hru hraj na: <a href="' +
+      frontend + '">' + frontend + '</a></h1></body></html>'
+  );
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
