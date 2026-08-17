@@ -7,7 +7,8 @@ import {
   RefreshIcon,
   TrophyIcon,
   CardIcon,
-  LeaveIcon
+  LeaveIcon,
+  EyeIcon
 } from './icons';
 import { getPlayer } from '../storage';
 
@@ -55,6 +56,7 @@ function Game({ socket }) {
   const [selectedPlayerForPenalty, setSelectedPlayerForPenalty] = useState('');
   const [error, setError] = useState('');
   const [connected, setConnected] = useState(socket.connected);
+  const [peekCard, setPeekCard] = useState(null);
 
   useEffect(() => {
     const rejoin = () => {
@@ -96,6 +98,20 @@ function Game({ socket }) {
       socket.off('disconnect', onDisconnect);
     };
   }, [socket, lobbyId]);
+
+  const handlePeek = () => {
+    if (peekCard) {
+      setPeekCard(null);
+      return;
+    }
+    if (!currentPlayer) return;
+    setPeekCard(currentPlayer.deck[1] || null);
+  };
+
+  const myDeckLength = currentPlayer?.deck.length ?? 0;
+  useEffect(() => {
+    setPeekCard(null);
+  }, [myDeckLength]);
 
   const handleFlipCard = () => {
     if (gameState && gameState.players[gameState.activePlayerIndex]?.id === socket.id) {
@@ -281,6 +297,34 @@ function Game({ socket }) {
               {currentPlayer?.deck.length || 0}
             </span>
           </div>
+        </div>
+
+        <div className="card-flat mb-4 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-ink">Náhled karty</p>
+              <p className="text-xs text-gray-500">karta v balíčku pod vrchní</p>
+            </div>
+            <button
+              onClick={handlePeek}
+              disabled={!currentPlayer || currentPlayer.deck.length < 2}
+              className="btn-secondary flex !w-auto shrink-0 items-center gap-2 !px-3 !py-2 text-sm"
+            >
+              <EyeIcon className="h-4 w-4" />
+              {peekCard ? 'Skrýt' : 'Nakouknout'}
+            </button>
+          </div>
+          {peekCard ? (
+            <div className="mt-4 flex justify-center">
+              <CardFace key={peekCard.id} card={peekCard} />
+            </div>
+          ) : (
+            <p className="mt-4 text-center text-xs text-gray-400">
+              {currentPlayer && currentPlayer.deck.length < 2
+                ? 'Nemáš žádnou kartu pod vrchní.'
+                : 'Odhalí se jen karta, která přijde po té, co položíš.'}
+            </p>
+          )}
         </div>
 
         <button
