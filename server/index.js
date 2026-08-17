@@ -18,10 +18,22 @@ app.get('/', (_req, res) => {
   );
 });
 
+function isAllowedOrigin(origin, callback) {
+  if (!origin) return callback(null, true); // non-browser clients (mobile apps, tests, curl...)
+  const allowed = (process.env.FRONTEND_URL || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (allowed.length === 0) return callback(null, true); // nothing configured -> allow all
+  if (allowed.includes(origin)) return callback(null, true);
+  if (/\.vercel\.app$/.test(origin)) return callback(null, true); // production + preview domains
+  return callback(null, false);
+}
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || '*',
+    origin: isAllowedOrigin,
     methods: ['GET', 'POST']
   }
 });
@@ -119,6 +131,16 @@ io.on('connection', (socket) => {
 
     const game = games[targetLobbyId];
 
+    // Idempotent re-join: this socket is already the active player
+    // (e.g. Game screen remount after navigation or page refresh reconnect)
+    const alreadyMe = game.players.find((p) => p.id === socket.id);
+    if (alreadyMe) {
+      socket.join(targetLobbyId);
+      io.to(targetLobbyId).emit('game_state_update', game);
+      socket.emit('lobby_joined', { lobbyId: targetLobbyId });
+      return;
+    }
+
     // Reconnect into an in-progress / ended game (same name, previously disconnected)
     if (game.gameState !== 'LOBBY') {
       const disconnected = game.players.find((p) => p.name === name && !p.connected);
@@ -146,13 +168,6 @@ io.on('connection', (socket) => {
     // Lobby limits
     if (game.expectedPlayerCount && game.players.length >= game.expectedPlayerCount) {
       socket.emit('error', { message: 'Lobby je plné.' });
-      return;
-    }
-
-    // Check if player already exists
-    const existingPlayer = game.players.find((p) => p.id === socket.id);
-    if (existingPlayer) {
-      socket.emit('error', { message: 'Už jsi v tomto lobby.' });
       return;
     }
 

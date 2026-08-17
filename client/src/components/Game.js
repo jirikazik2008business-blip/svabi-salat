@@ -83,6 +83,13 @@ function Game({ socket }) {
   const [connected, setConnected] = useState(socket.connected);
 
   useEffect(() => {
+    const rejoin = () => {
+      const stored = getPlayer();
+      if (stored && stored.name) {
+        socket.emit('join_lobby', { lobbyId, playerName: stored.name, age: stored.age });
+      }
+    };
+
     const onGameState = (game) => {
       setGameState(game);
       setCurrentPlayer(game.players.find((p) => p.id === socket.id) || null);
@@ -95,14 +102,7 @@ function Game({ socket }) {
 
     const onConnect = () => {
       setConnected(true);
-      const stored = getPlayer();
-      if (stored && stored.lobbyId) {
-        socket.emit('join_lobby', {
-          lobbyId: stored.lobbyId,
-          playerName: stored.name,
-          age: stored.age
-        });
-      }
+      rejoin();
     };
     const onDisconnect = () => setConnected(false);
 
@@ -111,13 +111,17 @@ function Game({ socket }) {
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
 
+    if (socket.connected) {
+      rejoin();
+    }
+
     return () => {
       socket.off('game_state_update', onGameState);
       socket.off('error', onError);
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
     };
-  }, [socket]);
+  }, [socket, lobbyId]);
 
   const handleFlipCard = () => {
     if (gameState && gameState.players[gameState.activePlayerIndex]?.id === socket.id) {
@@ -146,11 +150,20 @@ function Game({ socket }) {
   };
 
   if (!gameState) {
+    const stored = getPlayer();
+    const canRejoin = Boolean(stored && stored.name);
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <div className="text-center">
+      <div className="flex min-h-screen items-center justify-center bg-white p-4">
+        <div className="w-full max-w-sm text-center">
           <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-gray-900" />
-          <p className="text-sm font-semibold text-gray-500">Připojování ke hře…</p>
+          <p className="text-sm font-semibold text-gray-500">
+            {canRejoin ? 'Připojování ke hře…' : 'Nenašli jsme tě ve hře.'}
+          </p>
+          {!canRejoin && (
+            <button onClick={() => navigate(`/?room=${lobbyId}`)} className="btn-primary mt-5">
+              Zadat jméno a připojit se
+            </button>
+          )}
         </div>
       </div>
     );

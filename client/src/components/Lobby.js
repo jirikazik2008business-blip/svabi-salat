@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CockroachIcon,
@@ -22,7 +22,6 @@ function Lobby({ socket }) {
   const [connected, setConnected] = useState(socket.connected);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const autoJoinedRef = useRef(false);
 
   const showError = useCallback((message) => {
     setError(message);
@@ -36,20 +35,7 @@ function Lobby({ socket }) {
 
   useEffect(() => {
     const urlLobbyId = searchParams.get('room');
-    const urlName = searchParams.get('name');
-    const urlAge = searchParams.get('age');
-
     if (urlLobbyId) setLobbyId(urlLobbyId.toUpperCase());
-    if (urlName) setPlayerName(urlName);
-    if (urlAge) setPlayerAge(urlAge);
-
-    if (urlLobbyId && urlName && urlAge && !autoJoinedRef.current) {
-      autoJoinedRef.current = true;
-      savePlayer({ lobbyId: urlLobbyId.toUpperCase(), name: urlName, age: urlAge });
-      window.setTimeout(() => {
-        socket.emit('join_lobby', { lobbyId: urlLobbyId.toUpperCase(), playerName: urlName, age: urlAge });
-      }, 100);
-    }
 
     const onConnect = () => {
       setConnected(true);
@@ -144,7 +130,7 @@ function Lobby({ socket }) {
   const handleCopyInviteLink = () => {
     const currentPlayer = getCurrentPlayer();
     if (!currentPlayer) return;
-    const inviteUrl = `${window.location.origin}/?room=${currentLobbyId}&name=${encodeURIComponent(playerName)}&age=${playerAge}`;
+    const inviteUrl = `${window.location.origin}/?room=${currentLobbyId}`;
     navigator.clipboard.writeText(inviteUrl).then(() => {
       showNotice('Pozvánka byla zkopírována.');
     }).catch(() => {
